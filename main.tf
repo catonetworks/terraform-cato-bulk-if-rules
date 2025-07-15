@@ -1,7 +1,17 @@
 locals {
   ifw_rules_json = jsondecode(file("${var.ifw_rules_json_file_path}"))
   ifw_rules_data = local.ifw_rules_json.data.policy.internetFirewall.policy.rules
-  sections_data = local.ifw_rules_json.data.policy.internetFirewall.policy.sections
+  sections_data_unsorted = local.ifw_rules_json.data.policy.internetFirewall.policy.sections
+  # Create a map with section_index as key to sort sections correctly
+  sections_by_index = {
+    for section in local.sections_data_unsorted : 
+    tostring(section.section_index) => section
+  }
+  # Sort sections by section_index to ensure consistent ordering regardless of JSON file order
+  sections_data = [
+    for index in sort(keys(local.sections_by_index)) :
+    local.sections_by_index[index]
+  ]
   rules_data = local.ifw_rules_json.data.policy.internetFirewall.policy.rules_in_sections
 }
 

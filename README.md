@@ -13,7 +13,7 @@ The module reads a JSON configuration file that defines:
 
 ```hcl
 module "bulk_ifw_rules" {
-  source = "./terraform-cato-bulk-if-rules"
+  source = "catonetworks/bulk-if-rules/cato"
   
   ifw_rules_json_file_path = "./config_data/all_ifw_rules_and_sections.json"
   section_to_start_after_id = "existing-section-id" # Optional
