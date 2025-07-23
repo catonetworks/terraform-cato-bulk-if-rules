@@ -1,22 +1,31 @@
 locals {
-  ifw_rules_json = jsondecode(file("${var.ifw_rules_json_file_path}"))
-  ifw_rules_data = local.ifw_rules_json.data.policy.internetFirewall.policy.rules
+  ifw_rules_json         = jsondecode(file("${var.ifw_rules_json_file_path}"))
+  ifw_rules_data         = local.ifw_rules_json.data.policy.internetFirewall.policy.rules
   sections_data_unsorted = local.ifw_rules_json.data.policy.internetFirewall.policy.sections
   # Create a map with section_index as key to sort sections correctly
   sections_by_index = {
-    for section in local.sections_data_unsorted : 
+    for section in local.sections_data_unsorted :
     tostring(section.section_index) => section
   }
   # Sort sections by section_index to ensure consistent ordering regardless of JSON file order
-  sections_data = [
+  sections_data_list = [
     for index in sort(keys(local.sections_by_index)) :
     local.sections_by_index[index]
   ]
-  rules_data = local.ifw_rules_json.data.policy.internetFirewall.policy.rules_in_sections
+  # Convert sections to map for provider schema compatibility
+  sections_data = {
+    for section in local.sections_data_list :
+    section.section_name => section
+  }
+  # Convert rules to map for provider schema compatibility
+  rules_data = {
+    for rule in local.ifw_rules_json.data.policy.internetFirewall.policy.rules_in_sections :
+    rule.rule_name => rule
+  }
 }
 
 resource "cato_if_section" "sections" {
-  for_each = { for section in local.sections_data : section.section_name => section }
+  for_each = local.sections_data
   at = {
     position = "LAST_IN_POLICY"
   }
@@ -47,15 +56,15 @@ resource "cato_if_rule" "rules" {
           },
           # Only include mailing_list if it exists and is not empty
           try(length(each.value.rule.tracking.alert.mailingList), 0) > 0 ? {
-          mailing_list = [for ml in each.value.rule.tracking.alert.mailingList : can(ml.name) ? { name = ml.name } : { id = ml.id }]
+            mailing_list = [for ml in each.value.rule.tracking.alert.mailingList : can(ml.name) ? { name = ml.name } : { id = ml.id }]
           } : {},
           # Only include subscription_group if it exists and is not empty
           try(length(each.value.rule.tracking.alert.subscriptionGroup), 0) > 0 ? {
-          subscription_group = [for sg in each.value.rule.tracking.alert.subscriptionGroup : can(sg.name) ? { name = sg.name } : { id = sg.id }]
+            subscription_group = [for sg in each.value.rule.tracking.alert.subscriptionGroup : can(sg.name) ? { name = sg.name } : { id = sg.id }]
           } : {},
           # Only include webhook if it exists and is not empty
           try(length(each.value.rule.tracking.alert.webhook), 0) > 0 ? {
-          webhook = [for wh in each.value.rule.tracking.alert.webhook : can(wh.name) ? { name = wh.name } : { id = wh.id }]
+            webhook = [for wh in each.value.rule.tracking.alert.webhook : can(wh.name) ? { name = wh.name } : { id = wh.id }]
           } : {}
         )
         event = {
@@ -93,21 +102,21 @@ resource "cato_if_rule" "rules" {
     try(each.value.rule.source, null) != null ? {
       source = {
         for k, v in {
-          ip = try(length(each.value.rule.source.ip), 0) > 0 ? each.value.rule.source.ip : null
-          host = try(length(each.value.rule.source.host), 0) > 0 ? [for host in each.value.rule.source.host : can(host.name) ? { name = host.name } : { id = host.id }] : null
-          site = try(length(each.value.rule.source.site), 0) > 0 ? [for site in each.value.rule.source.site : can(site.name) ? { name = site.name } : { id = site.id }] : null
+          ip          = try(length(each.value.rule.source.ip), 0) > 0 ? each.value.rule.source.ip : null
+          host        = try(length(each.value.rule.source.host), 0) > 0 ? [for host in each.value.rule.source.host : can(host.name) ? { name = host.name } : { id = host.id }] : null
+          site        = try(length(each.value.rule.source.site), 0) > 0 ? [for site in each.value.rule.source.site : can(site.name) ? { name = site.name } : { id = site.id }] : null
           users_group = try(length(each.value.rule.source.usersGroup), 0) > 0 ? [for group in each.value.rule.source.usersGroup : can(group.name) ? { name = group.name } : { id = group.id }] : null
-          subnet = try(length(each.value.rule.source.subnet), 0) > 0 ? [for subnet in each.value.rule.source.subnet : can(subnet.name) ? { name = subnet.name } : { id = subnet.id }] : null
+          subnet      = try(length(each.value.rule.source.subnet), 0) > 0 ? [for subnet in each.value.rule.source.subnet : can(subnet.name) ? { name = subnet.name } : { id = subnet.id }] : null
           ip_range = try(length(each.value.rule.source.ipRange), 0) > 0 ? [for range in each.value.rule.source.ipRange : {
             from = range.from
             to   = range.to
           }] : null
-          network_interface = try(length(each.value.rule.source.networkInterface), 0) > 0 ? [for ni in each.value.rule.source.networkInterface : can(ni.name) ? { name = ni.name } : { id = ni.id }] : null
-          floating_subnet = try(length(each.value.rule.source.floatingSubnet), 0) > 0 ? [for subnet in each.value.rule.source.floatingSubnet : can(subnet.name) ? { name = subnet.name } : { id = subnet.id }] : null
+          network_interface   = try(length(each.value.rule.source.networkInterface), 0) > 0 ? [for ni in each.value.rule.source.networkInterface : can(ni.name) ? { name = ni.name } : { id = ni.id }] : null
+          floating_subnet     = try(length(each.value.rule.source.floatingSubnet), 0) > 0 ? [for subnet in each.value.rule.source.floatingSubnet : can(subnet.name) ? { name = subnet.name } : { id = subnet.id }] : null
           site_network_subnet = try(length(each.value.rule.source.siteNetworkSubnet), 0) > 0 ? [for subnet in each.value.rule.source.siteNetworkSubnet : can(subnet.name) ? { name = subnet.name } : { id = subnet.id }] : null
-          system_group = try(length(each.value.rule.source.systemGroup), 0) > 0 ? [for group in each.value.rule.source.systemGroup : can(group.name) ? { name = group.name } : { id = group.id }] : null
-          group = try(length(each.value.rule.source.group), 0) > 0 ? [for group in each.value.rule.source.group : can(group.name) ? { name = group.name } : { id = group.id }] : null
-          user = try(length(each.value.rule.source.user), 0) > 0 ? [for user in each.value.rule.source.user : can(user.name) ? { name = user.name } : { id = user.id }] : null
+          system_group        = try(length(each.value.rule.source.systemGroup), 0) > 0 ? [for group in each.value.rule.source.systemGroup : can(group.name) ? { name = group.name } : { id = group.id }] : null
+          group               = try(length(each.value.rule.source.group), 0) > 0 ? [for group in each.value.rule.source.group : can(group.name) ? { name = group.name } : { id = group.id }] : null
+          user                = try(length(each.value.rule.source.user), 0) > 0 ? [for user in each.value.rule.source.user : can(user.name) ? { name = user.name } : { id = user.id }] : null
         } : k => v if v != null
       }
     } : {},
@@ -116,19 +125,19 @@ resource "cato_if_rule" "rules" {
     {
       destination = {
         for k, v in {
-          app_category = try(length(each.value.rule.destination.appCategory), 0) > 0 ? [for cat in each.value.rule.destination.appCategory : can(cat.name) ? { name = cat.name } : { id = cat.id }] : null
-          application = try(length(each.value.rule.destination.application), 0) > 0 ? [for app in each.value.rule.destination.application : can(app.name) ? { name = app.name } : { id = app.id }] : null
-          custom_app = try(length(each.value.rule.destination.customApp), 0) > 0 ? [for app in each.value.rule.destination.customApp : can(app.name) ? { name = app.name } : { id = app.id }] : null
-          custom_category = try(length(each.value.rule.destination.customCategory), 0) > 0 ? [for cat in each.value.rule.destination.customCategory : can(cat.name) ? { name = cat.name } : { id = cat.id }] : null
+          app_category             = try(length(each.value.rule.destination.appCategory), 0) > 0 ? [for cat in each.value.rule.destination.appCategory : can(cat.name) ? { name = cat.name } : { id = cat.id }] : null
+          application              = try(length(each.value.rule.destination.application), 0) > 0 ? [for app in each.value.rule.destination.application : can(app.name) ? { name = app.name } : { id = app.id }] : null
+          custom_app               = try(length(each.value.rule.destination.customApp), 0) > 0 ? [for app in each.value.rule.destination.customApp : can(app.name) ? { name = app.name } : { id = app.id }] : null
+          custom_category          = try(length(each.value.rule.destination.customCategory), 0) > 0 ? [for cat in each.value.rule.destination.customCategory : can(cat.name) ? { name = cat.name } : { id = cat.id }] : null
           sanctioned_apps_category = try(length(each.value.rule.destination.sanctionedAppsCategory), 0) > 0 ? [for cat in each.value.rule.destination.sanctionedAppsCategory : can(cat.name) ? { name = cat.name } : { id = cat.id }] : null
-          domain = try(length(each.value.rule.destination.domain), 0) > 0 ? each.value.rule.destination.domain : null
-          fqdn = try(length(each.value.rule.destination.fqdn), 0) > 0 ? each.value.rule.destination.fqdn : null
-          ip = try(length(each.value.rule.destination.ip), 0) > 0 ? each.value.rule.destination.ip : null
+          domain                   = try(length(each.value.rule.destination.domain), 0) > 0 ? each.value.rule.destination.domain : null
+          fqdn                     = try(length(each.value.rule.destination.fqdn), 0) > 0 ? each.value.rule.destination.fqdn : null
+          ip                       = try(length(each.value.rule.destination.ip), 0) > 0 ? each.value.rule.destination.ip : null
           ip_range = try(length(each.value.rule.destination.ipRange), 0) > 0 ? [for range in each.value.rule.destination.ipRange : {
             from = range.from
             to   = range.to
           }] : null
-          country = try(length(each.value.rule.destination.country), 0) > 0 ? [for country in each.value.rule.destination.country : can(country.name) ? { name = country.name } : { id = country.id }] : null
+          country    = try(length(each.value.rule.destination.country), 0) > 0 ? [for country in each.value.rule.destination.country : can(country.name) ? { name = country.name } : { id = country.id }] : null
           remote_asn = try(length(each.value.rule.destination.remoteAsn), 0) > 0 ? each.value.rule.destination.remoteAsn : null
         } : k => v if v != null
       }
@@ -221,16 +230,16 @@ resource "cato_if_rule" "rules" {
           {
             destination = {
               for k, v in {
-                app_category = try(length(exception.destination.appCategory), 0) > 0 ? [for cat in exception.destination.appCategory : { name = cat.name }] : null
-                application = try(length(exception.destination.application), 0) > 0 ? [for app in exception.destination.application : { name = app.name }] : null
-                custom_app = try(length(exception.destination.customApp), 0) > 0 ? [for app in exception.destination.customApp : { name = app.name }] : null
-                custom_category = try(length(exception.destination.customCategory), 0) > 0 ? [for cat in exception.destination.customCategory : { name = cat.name }] : null
+                app_category             = try(length(exception.destination.appCategory), 0) > 0 ? [for cat in exception.destination.appCategory : { name = cat.name }] : null
+                application              = try(length(exception.destination.application), 0) > 0 ? [for app in exception.destination.application : { name = app.name }] : null
+                custom_app               = try(length(exception.destination.customApp), 0) > 0 ? [for app in exception.destination.customApp : { name = app.name }] : null
+                custom_category          = try(length(exception.destination.customCategory), 0) > 0 ? [for cat in exception.destination.customCategory : { name = cat.name }] : null
                 sanctioned_apps_category = try(length(exception.destination.sanctionedAppsCategory), 0) > 0 ? [for cat in exception.destination.sanctionedAppsCategory : { name = cat.name }] : null
-                domain = try(length(exception.destination.domain), 0) > 0 ? exception.destination.domain : null
-                fqdn = try(length(exception.destination.fqdn), 0) > 0 ? exception.destination.fqdn : null
-                country = try(length(exception.destination.country), 0) > 0 ? [for country in exception.destination.country : { name = country.name }] : null
-                ip = try(length(exception.destination.ip), 0) > 0 ? exception.destination.ip : null
-                subnet = try(length(exception.destination.subnet), 0) > 0 ? [for subnet in exception.destination.subnet : { name = subnet.name }] : null
+                domain                   = try(length(exception.destination.domain), 0) > 0 ? exception.destination.domain : null
+                fqdn                     = try(length(exception.destination.fqdn), 0) > 0 ? exception.destination.fqdn : null
+                country                  = try(length(exception.destination.country), 0) > 0 ? [for country in exception.destination.country : { name = country.name }] : null
+                ip                       = try(length(exception.destination.ip), 0) > 0 ? exception.destination.ip : null
+                subnet                   = try(length(exception.destination.subnet), 0) > 0 ? [for subnet in exception.destination.subnet : { name = subnet.name }] : null
                 ip_range = try(length(exception.destination.ipRange), 0) > 0 ? [for range in exception.destination.ipRange : {
                   from = range.from
                   to   = range.to
@@ -260,8 +269,8 @@ resource "cato_if_rule" "rules" {
 }
 
 resource "cato_bulk_if_move_rule" "all_if_rules" {
-  depends_on   = [cato_if_section.sections, cato_if_rule.rules]
-  rule_data    = local.rules_data
-  section_data = local.sections_data
+  depends_on                = [cato_if_section.sections, cato_if_rule.rules]
+  rule_data                 = local.rules_data
+  section_data              = local.sections_data
   section_to_start_after_id = var.section_to_start_after_id != null ? var.section_to_start_after_id : null
 }

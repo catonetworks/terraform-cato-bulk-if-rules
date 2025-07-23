@@ -75,10 +75,10 @@ output "bulk_move_operation" {
   description = "Details of the bulk move operation"
   value = {
     section_to_start_after_id = cato_bulk_if_move_rule.all_if_rules.section_to_start_after_id
-    rules_moved              = length(local.rules_data)
-    sections_created         = length(local.sections_data)
-    rule_data                = cato_bulk_if_move_rule.all_if_rules.rule_data
-    section_data             = cato_bulk_if_move_rule.all_if_rules.section_data
+    rules_moved               = length(local.rules_data)
+    sections_created          = length(local.sections_data)
+    rule_data                 = cato_bulk_if_move_rule.all_if_rules.rule_data
+    section_data              = cato_bulk_if_move_rule.all_if_rules.section_data
   }
 }
 
@@ -117,10 +117,10 @@ output "rules_to_sections_mapping" {
   description = "Mapping of rules to their assigned sections with ordering"
   value = {
     for rule_mapping in local.rules_data : rule_mapping.rule_name => {
-      section_name       = rule_mapping.section_name
-      index_in_section   = rule_mapping.index_in_section
-      rule_id           = try(cato_if_rule.rules[rule_mapping.rule_name].rule.id, "")
-      section_id        = try(cato_if_section.sections[rule_mapping.section_name].id, "")
+      section_name     = rule_mapping.section_name
+      index_in_section = rule_mapping.index_in_section
+      rule_id          = try(cato_if_rule.rules[rule_mapping.rule_name].rule.id, "")
+      section_id       = try(cato_if_section.sections[rule_mapping.section_name].id, "")
     }
   }
 }
@@ -137,7 +137,7 @@ output "sections_to_rules_mapping" {
         {
           rule_name        = rule_mapping.rule_name
           index_in_section = rule_mapping.index_in_section
-          rule_id         = try(cato_if_rule.rules[rule_mapping.rule_name].rule.id, "")
+          rule_id          = try(cato_if_rule.rules[rule_mapping.rule_name].rule.id, "")
         }
         if rule_mapping.section_name == section_name
       ]
