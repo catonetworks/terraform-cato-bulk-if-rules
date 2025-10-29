@@ -425,13 +425,13 @@ These example outputs demonstrate various practical applications:
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_cato"></a> [cato](#requirement\_cato) | >= 0.0.35 |
+| <a name="requirement_cato"></a> [cato](#requirement\_cato) | 0.0.48 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_cato"></a> [cato](#provider\_cato) | >= 0.0.35 |
+| <a name="provider_cato"></a> [cato](#provider\_cato) | 0.0.48 |
 
 ## Modules
 
@@ -441,9 +441,9 @@ No modules.
 
 | Name | Type |
 |------|------|
-| [cato_bulk_if_move_rule.all_if_rules](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/bulk_if_move_rule) | resource |
-| [cato_if_rule.rules](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/if_rule) | resource |
-| [cato_if_section.sections](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/if_section) | resource |
+| [cato_bulk_if_move_rule.all_if_rules](https://registry.terraform.io/providers/terraform-providers/cato/0.0.48/docs/resources/bulk_if_move_rule) | resource |
+| [cato_if_rule.rules](https://registry.terraform.io/providers/terraform-providers/cato/0.0.48/docs/resources/if_rule) | resource |
+| [cato_if_section.sections](https://registry.terraform.io/providers/terraform-providers/cato/0.0.48/docs/resources/if_section) | resource |
 
 ## Inputs
 

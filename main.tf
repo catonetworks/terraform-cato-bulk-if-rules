@@ -198,10 +198,10 @@ resource "cato_if_rule" "rules" {
             country = [for country in exception.country : can(country.name) ? { name = country.name } : { id = country.id }]
           } : {},
 
-          # Exception device_os - always include even if empty
-          {
-            device_os = try(exception.deviceOS, [])
-          },
+          # Exception device_os - only include if not empty
+          try(length(exception.deviceOS), 0) > 0 ? {
+            device_os = exception.deviceOS
+          } : {},
 
           # Exception source - always required
           {
