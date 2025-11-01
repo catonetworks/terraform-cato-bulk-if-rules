@@ -20,7 +20,7 @@
 ### Features
 - Fixed tracking.alert parsing and device_attributes
 
-## 0.0.5 (2025-10-28)
+## 0.0.6 (2025-11-01)
 
 ### Features
-- Updated required version
+- Updated required cato provider to 49 and TF version to >= 1.13
