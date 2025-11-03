@@ -25,7 +25,7 @@
 ### Features
 - Updated required cato provider to 49 and TF version to >= 1.13
 
-## 0.0.7 (2025-11-01)
+## 0.0.8 (2025-11-01)
 
 ### Features
 - Updated import logic around customService with portrange, and subnet inpur params
