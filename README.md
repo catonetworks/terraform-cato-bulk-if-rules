@@ -424,14 +424,15 @@ These example outputs demonstrate various practical applications:
 ## Requirements
 
 | Name | Version |
-|------|---------|
-| <a name="requirement_cato"></a> [cato](#requirement\_cato) | 0.0.48 |
+| ---- | ------- |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.5 |
+| <a name="requirement_cato"></a> [cato](#requirement\_cato) | >= 0.0.70 |
 
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_cato"></a> [cato](#provider\_cato) | 0.0.48 |
+| ---- | ------- |
+| <a name="provider_cato"></a> [cato](#provider\_cato) | >= 0.0.70 |
 
 ## Modules
 
@@ -440,22 +441,22 @@ No modules.
 ## Resources
 
 | Name | Type |
-|------|------|
-| [cato_bulk_if_move_rule.all_if_rules](https://registry.terraform.io/providers/terraform-providers/cato/0.0.48/docs/resources/bulk_if_move_rule) | resource |
-| [cato_if_rule.rules](https://registry.terraform.io/providers/terraform-providers/cato/0.0.48/docs/resources/if_rule) | resource |
-| [cato_if_section.sections](https://registry.terraform.io/providers/terraform-providers/cato/0.0.48/docs/resources/if_section) | resource |
+| ---- | ---- |
+| [cato_bulk_if_move_rule.all_if_rules](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/bulk_if_move_rule) | resource |
+| [cato_if_rule.rules](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/if_rule) | resource |
+| [cato_if_section.sections](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/if_section) | resource |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_ifw_rules_json_file_path"></a> [ifw\_rules\_json\_file\_path](#input\_ifw\_rules\_json\_file\_path) | Path to the json file containing the ifw rule data. | `string` | n/a | yes |
 | <a name="input_section_to_start_after_id"></a> [section\_to\_start\_after\_id](#input\_section\_to\_start\_after\_id) | The ID of the section after which to start adding rules. | `string` | `null` | no |
 
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_allow_rules"></a> [allow\_rules](#output\_allow\_rules) | List of rules with ALLOW action |
 | <a name="output_block_rules"></a> [block\_rules](#output\_block\_rules) | List of rules with BLOCK action |
 | <a name="output_bulk_move_operation"></a> [bulk\_move\_operation](#output\_bulk\_move\_operation) | Details of the bulk move operation |
