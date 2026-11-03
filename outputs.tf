@@ -125,6 +125,59 @@ output "rules_to_sections_mapping" {
   }
 }
 
+# Sub-Policy Outputs (NEW - see ifw-sub-policy-json-design.md)
+output "sub_policy_ids" {
+  description = "Map of sub-policy names to their IDs"
+  value = {
+    for k, v in cato_if_sub_policy.sub_policies : k => v.id
+  }
+}
+
+output "sub_policy_scope_rule_ids" {
+  description = "Map of sub-policy names to the ID of their underlying SUB_POLICY_SCOPE rule"
+  value = {
+    for k, v in cato_if_sub_policy.sub_policies : k => v.scope_rule_id
+  }
+}
+
+output "sub_rule_ids" {
+  description = "Map of sub-rules (keyed \"<sub_policy_name>::<rule_name>\") to their IDs"
+  value = {
+    for k, v in cato_if_rule.sub_rules : k => v.rule.id
+  }
+}
+
+# Unmanaged sub-sections (provider has no sub-policy parenting on cato_if_section
+# yet - these are export/import-only, not created/managed by this module).
+# Keyed "<sub_policy_name>::<section_name>".
+output "unmanaged_sub_sections" {
+  description = "Sub-sections present in the JSON that this module cannot yet manage (no cato_if_section sub-policy parenting in the provider). Informational only."
+  value       = local.sub_sections_data
+}
+
+# rules_in_sections rows that order a rule INSIDE a sub-policy. The provider's
+# cato_bulk_if_move_rule cannot yet consume these (ordering inside sub-policies
+# is creation-order best-effort - see main.tf). Informational only.
+output "unordered_sub_policy_rules" {
+  description = "rules_in_sections rows that order a rule inside a sub-policy, which cato_bulk_if_move_rule does not yet support. Informational only."
+  value       = local.unordered_sub_policy_rules_data
+}
+
+# Cleanup rule ids, re-resolved by the provider on every read/update: the
+# cleanup is always the sub-policy's LAST rule, so this tracks manual moves.
+output "cleanup_rule_ids" {
+  description = "Map of sub-policy name to the id of its cleanup rule (the sub-policy's last rule, API-managed identity)."
+  value       = { for name, sp in cato_if_sub_policy.sub_policies : name => sp.cleanup_rule_id }
+}
+
+# Sub-policy scope rows whose parent section is not managed by this module
+# (e.g. the account's default section). Their placement fell back to
+# LAST_IN_POLICY and they are excluded from the move resource (see main.tf).
+output "unordered_sub_policies" {
+  description = "rules_in_sections sub-policy rows whose parent section is not in sections[], so cato_bulk_if_move_rule does not order them. Informational only."
+  value       = local.unordered_sub_policies_data
+}
+
 # Section to Rules Mapping
 output "sections_to_rules_mapping" {
   description = "Mapping of sections to their assigned rules with ordering"

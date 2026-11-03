@@ -259,6 +259,70 @@ If unintended changes are made directly to rules and sections in the Cato Manage
    # Compare with your existing JSON file to identify changes
    ```
 
+## Sub-policies
+
+The Internet Firewall supports **sub-policies**: a nested policy, scoped by a
+`SUB_POLICY_SCOPE` rule, with its own rules and (optionally) its own
+sub-sections. This module supports creating and ordering sub-policies and
+their rules. The full JSON contract is specified in
+`ifw-sub-policy-json-design.md` (companion design doc in the
+`reference-architecture-cma-configs` repo) — this section summarizes the new
+keys and the current limitations.
+
+### New JSON keys
+
+- `data.policy.internetFirewall.policy.sub_policies[]` - one entry per
+  sub-policy: `sub_policy_name`, `description`, `enabled`, `scope` (the
+  `SUB_POLICY_SCOPE` rule's matching criteria - same shape as a rule's
+  top-level fields, minus `name`/`action`/`description`), plus
+  `sub_policy_id`/`scope_rule_id` (brownfield import keys only; ignored on
+  greenfield apply).
+- `sections[]` entries may carry `sub_policy_name` to mark a sub-section owned
+  by that sub-policy (`section_index` restarts per parent - main policy or
+  owning sub-policy).
+- `rules[]` entries may carry `sub_policy_name` to mark a rule owned by that
+  sub-policy. The rule's `section.name` is either the sub-section's name or
+  `""` when the sub-policy has no explicit sub-section.
+- `rules_in_sections[]` rows gain two optional fields:
+  - `entry_type`: `"rule"` (default) or `"sub_policy"` - a `"sub_policy"` row
+    is the sub-policy's `SUB_POLICY_SCOPE` row, positioned among its sibling
+    rules in the parent section via `index_in_section`.
+  - `sub_policy_name`: on a rule row, orders that rule *inside* the named
+    sub-policy (combined with `section_name: ""` for sub-policies without an
+    explicit sub-section).
+
+A legacy file (no `sub_policies` key, no `entry_type`/`sub_policy_name`
+anywhere) is a valid instance of this schema and produces **byte-identical**
+resource sets at today's addresses (`cato_if_section.sections["<name>"]`,
+`cato_if_rule.rules["<name>"]`) - no state migration for existing deployments.
+
+### Resources created
+
+- `cato_if_sub_policy.sub_policies` - keyed by `sub_policy_name`. Positioned
+  `LAST_IN_SECTION` under the parent section derived from its
+  `entry_type: "sub_policy"` row in `rules_in_sections`; falls back to
+  `LAST_IN_POLICY` when that parent section isn't managed by this module
+  (e.g. `"Default Outbound Internet"`, or a sub-policies-only config with no
+  custom sections at all).
+- `cato_if_rule.sub_rules` - keyed `"<sub_policy_name>::<rule_name>"`, with
+  `sub_policy_id` set to the owning `cato_if_sub_policy`.
+
+### Known provider gaps
+
+- **No sub-section resource.** The provider's `cato_if_section` has no
+  sub-policy parenting yet, so sub-sections are **export/import-only** - this
+  module does not create them. They're surfaced via the
+  `unmanaged_sub_sections` output for visibility.
+- **No ordering inside a sub-policy.** `cato_bulk_if_move_rule` does not yet
+  support reordering rules *inside* a sub-policy (its reorder input's
+  `SubRules` is always empty, and rules with an empty `SectionID` are skipped
+  from main-policy reordering). Rows that would order a rule inside a
+  sub-policy are excluded from the move resource and surfaced via the
+  `unordered_sub_policy_rules` output instead - order inside a sub-policy is
+  **creation-order best-effort only**. Sub-policies themselves (as scope rows
+  among sibling rules in a section) ARE ordered correctly, since a scope row
+  is a real rule in the live policy index with a real parent section.
+
 ## Using Module Outputs
 
 The module provides comprehensive outputs that can be used for monitoring, auditing, integration with other systems, and operational insights. Below are practical examples of how to use these outputs in your Terraform configuration.
@@ -425,13 +489,14 @@ These example outputs demonstrate various practical applications:
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_cato"></a> [cato](#requirement\_cato) | 0.0.48 |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.13 |
+| <a name="requirement_cato"></a> [cato](#requirement\_cato) | >= 1.2.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_cato"></a> [cato](#provider\_cato) | 0.0.48 |
+| <a name="provider_cato"></a> [cato](#provider\_cato) | >= 1.2.0 |
 
 ## Modules
 
@@ -441,9 +506,11 @@ No modules.
 
 | Name | Type |
 |------|------|
-| [cato_bulk_if_move_rule.all_if_rules](https://registry.terraform.io/providers/terraform-providers/cato/0.0.48/docs/resources/bulk_if_move_rule) | resource |
-| [cato_if_rule.rules](https://registry.terraform.io/providers/terraform-providers/cato/0.0.48/docs/resources/if_rule) | resource |
-| [cato_if_section.sections](https://registry.terraform.io/providers/terraform-providers/cato/0.0.48/docs/resources/if_section) | resource |
+| [cato_bulk_if_move_rule.all_if_rules](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/bulk_if_move_rule) | resource |
+| [cato_if_rule.rules](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/if_rule) | resource |
+| [cato_if_rule.sub_rules](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/if_rule) | resource |
+| [cato_if_section.sections](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/if_section) | resource |
+| [cato_if_sub_policy.sub_policies](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/resources/if_sub_policy) | resource |
 
 ## Inputs
 
@@ -471,4 +538,9 @@ No modules.
 | <a name="output_section_names"></a> [section\_names](#output\_section\_names) | List of all created section names |
 | <a name="output_sections"></a> [sections](#output\_sections) | Map of all created Internet Firewall sections with their details |
 | <a name="output_sections_to_rules_mapping"></a> [sections\_to\_rules\_mapping](#output\_sections\_to\_rules\_mapping) | Mapping of sections to their assigned rules with ordering |
+| <a name="output_sub_policy_ids"></a> [sub\_policy\_ids](#output\_sub\_policy\_ids) | Map of sub-policy names to their IDs |
+| <a name="output_sub_policy_scope_rule_ids"></a> [sub\_policy\_scope\_rule\_ids](#output\_sub\_policy\_scope\_rule\_ids) | Map of sub-policy names to the ID of their underlying SUB\_POLICY\_SCOPE rule |
+| <a name="output_sub_rule_ids"></a> [sub\_rule\_ids](#output\_sub\_rule\_ids) | Map of sub-rules (keyed "<sub\_policy\_name>::<rule\_name>") to their IDs |
+| <a name="output_unmanaged_sub_sections"></a> [unmanaged\_sub\_sections](#output\_unmanaged\_sub\_sections) | Sub-sections present in the JSON that this module cannot yet manage (no cato\_if\_section sub-policy parenting in the provider). Informational only. |
+| <a name="output_unordered_sub_policy_rules"></a> [unordered\_sub\_policy\_rules](#output\_unordered\_sub\_policy\_rules) | rules\_in\_sections rows that order a rule inside a sub-policy, which cato\_bulk\_if\_move\_rule does not yet support. Informational only. |
 <!-- END_TF_DOCS -->
