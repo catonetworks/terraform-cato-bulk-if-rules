@@ -35,3 +35,22 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+# --- Additional ignores: local lockfile + hidden/sensitive files ---
+# Local provider lock file (these modules pin via versions.tf; never commit a
+# lock from a local/prerelease provider build).
+.terraform.lock.hcl
+
+# tfvars may contain secrets (re-stated; duplicate-safe for repos already covering it)
+*.tfvars
+*.tfvars.json
+
+# OS / editor hidden files
+.DS_Store
+*.swp
+*~
+
+# Secrets / credentials / env
+.env
+*.env
+*.pem
+*.key
