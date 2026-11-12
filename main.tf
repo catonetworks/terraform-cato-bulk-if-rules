@@ -350,6 +350,18 @@ locals {
   }
 }
 
+# Safety guard: fails plan if the main policy has 0 rules, unless
+# allow_empty_policy is explicitly set — protects against a truncated or
+# wrong-tenant export destroying the live policy via an empty for_each.
+resource "terraform_data" "guard_empty_policy" {
+  lifecycle {
+    precondition {
+      condition     = var.allow_empty_policy || length(local.main_rules_data) > 0
+      error_message = "Policy JSON contains 0 rules. If intentional (greenfield/teardown), set allow_empty_policy = true. A truncated or wrong-tenant export would otherwise destroy the entire live policy."
+    }
+  }
+}
+
 resource "cato_if_section" "sections" {
   for_each = local.sections_data
   at = {

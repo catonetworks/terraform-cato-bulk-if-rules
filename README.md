@@ -173,40 +173,150 @@ The final policy structure will be:
 
 ## Working with Existing Rules (Brownfield Deployments)
 
-For brownfield deployments where you have existing Internet Firewall rules in your Cato Management Application, you can use the Cato CLI to export and import these rules into Terraform state.
+If your Cato Management Application already has a live Internet Firewall policy, don't recreate it — **adopt** it. Adoption is a three-part flow: export the live policy to JSON, point this module at that JSON, then import the existing objects into Terraform state so that your first `terraform apply` changes nothing in the live tenant.
 
-### Installing and Configuring Cato CLI
+Two import paths are supported:
 
-1. **Install the Cato CLI:**
-   ```bash
-   pip3 install catocli
-   ```
+| Path | Style | Preview before state changes? |
+|------|-------|-------------------------------|
+| **Option A (recommended)** — native Terraform `import` blocks in a one-shot `migration.tf` | Declarative | Yes — `terraform plan` shows the complete adoption before state is touched |
+| **Option B** — `catocli import if_rules_to_tf` | Imperative (runs `terraform import` per resource) | No — state is mutated as the command runs |
 
-2. **Configure the CLI with your Cato credentials:**
-   ```bash
-   catocli configure set
-   ```
-   This will prompt you for your Cato Management Application credentials and account information.
+Both paths rely on the same module convention: every `for_each` state address is keyed by **name** (rule name, section name, sub-policy name), so import targets line up 1:1 against the exported JSON with no hand-mapping.
 
-### Exporting Existing Rules
+### Step 1 — Install and configure the Cato CLI
 
-To export your existing Internet Firewall rules and sections into the JSON format required by this module:
+```bash
+pip3 install catocli
+catocli configure set
+```
+
+`catocli configure set` prompts for your Cato API key and account ID and stores them as a named profile (AWS-CLI style).
+
+### Step 2 — Export the live policy
 
 ```bash
 catocli export if_rules
 ```
 
-This command will generate a JSON file containing all your existing IFW rules and sections in the correct format for this Terraform module.
+This writes `config_data/all_ifw_rules_and_sections.json` in exactly the format this module consumes. The export also captures each object's live ID (`sections[].section_id`, `rules[].rule.id`, `sub_policies[].sub_policy_id`) — these are the brownfield **import keys** used in Step 4, and are ignored on greenfield applies.
 
-### Importing Rules into Terraform State
+### Step 3 — Point the module at the export
 
-Once you have the JSON configuration file, you can import the existing rules and sections into Terraform state. This is useful for:
+```hcl
+module "if_rules" {
+  source = "catonetworks/bulk-if-rules/cato"
 
-- **Brownfield deployments**: Managing existing rules with Terraform
-- **Backup and restore**: Restoring rules to a known good state after unintended changes
-- **State management**: Bringing existing infrastructure under Terraform control
+  ifw_rules_json_file_path = "./config_data/all_ifw_rules_and_sections.json"
+}
+```
 
-To import the rules into Terraform state:
+Run `terraform init`, then continue to Step 4 **before** applying — an apply at this point would try to create duplicates of objects that already exist in the live policy.
+
+### Step 4 — Import the existing objects into Terraform state
+
+Whichever option you choose, the state addresses and import IDs are the same:
+
+| Object | State address | Import ID (from the export) |
+|--------|---------------|-----------------------------|
+| Section | `module.if_rules.cato_if_section.sections["<section_name>"]` | `sections[].section_id` |
+| Rule | `module.if_rules.cato_if_rule.rules["<rule_name>"]` | `rules[].rule.id` |
+| Sub-policy | `module.if_rules.cato_if_sub_policy.sub_policies["<sub_policy_name>"]` | `sub_policies[].sub_policy_id` |
+| Sub-policy rule | `module.if_rules.cato_if_rule.sub_rules["<sub_policy_name>::<rule_name>"]` | `rules[].rule.id` |
+
+`cato_bulk_if_move_rule.all_if_rules` is **never imported** — it is plan-time ordering orchestration with no live object of its own, and is created on the first apply after adoption. This is why a correct adoption plan always shows exactly `1 to add`.
+
+#### Option A (recommended) — native Terraform import blocks (`migration.tf`)
+
+Requires Terraform >= 1.7 (for `for_each` on `import` blocks). Create a one-shot `migration.tf` beside your module call. It derives every import target directly from the same JSON export the module reads, so there is nothing to hand-maintain — re-exporting refreshes both the config and the import IDs at once:
+
+<details>
+<summary>migration.tf — complete example</summary>
+
+```hcl
+locals {
+  ifw_policy = jsondecode(file("./config_data/all_ifw_rules_and_sections.json")).data.policy.internetFirewall.policy
+
+  ifw_main_sections = {
+    for s in local.ifw_policy.sections : s.section_name => s
+    if try(s.sub_policy_name, null) == null
+  }
+  ifw_main_rules = {
+    for r in local.ifw_policy.rules : r.rule.name => r.rule
+    if try(r.sub_policy_name, null) == null
+  }
+  ifw_sub_policies = {
+    for sp in try(local.ifw_policy.sub_policies, []) : sp.sub_policy_name => sp
+  }
+  ifw_sub_rules = {
+    for r in local.ifw_policy.rules : "${r.sub_policy_name}::${r.rule.name}" => r.rule
+    if try(r.sub_policy_name, null) != null
+  }
+}
+
+import {
+  for_each = local.ifw_main_sections
+  to       = module.if_rules.cato_if_section.sections[each.key]
+  id       = each.value.section_id
+}
+
+import {
+  for_each = local.ifw_main_rules
+  to       = module.if_rules.cato_if_rule.rules[each.key]
+  id       = each.value.id
+}
+
+import {
+  for_each = local.ifw_sub_policies
+  to       = module.if_rules.cato_if_sub_policy.sub_policies[each.key]
+  id       = each.value.sub_policy_id
+}
+
+import {
+  for_each = local.ifw_sub_rules
+  to       = module.if_rules.cato_if_rule.sub_rules[each.key]
+  id       = each.value.id
+}
+
+# cato_bulk_if_move_rule.all_if_rules is plan-time ordering orchestration —
+# it has no live object of its own, so it is never imported; it's created on
+# the first apply after the resources above are adopted.
+#
+# Sub-sections (sections[] entries with sub_policy_name set) have no
+# resource to import into: cato_if_section has no sub-policy parenting yet
+# (see "Known provider gaps" below). They stay export/import-only, surfaced
+# via the unmanaged_sub_sections output.
+```
+
+</details>
+
+Preview the adoption — nothing touches state during a plan:
+
+```bash
+terraform plan
+```
+
+Expect:
+
+```
+Plan: N to import, 1 to add, 0 to change, 0 to destroy.
+```
+
+- **`N to import`** — every live section, rule, and sub-policy, adopted at its name-keyed address.
+- **`1 to add`** — the `cato_bulk_if_move_rule` ordering resource (never imported; see the note above).
+- **Any `to change`** — the JSON export is stale relative to the live policy. **Stop and re-export** (`catocli export if_rules`) rather than letting `terraform apply` overwrite live rules with stale config.
+
+Once the plan reads clean, adopt:
+
+```bash
+terraform apply
+```
+
+Then **delete `migration.tf`** — it is one-shot by design; leaving it in place just re-evaluates the same (now no-op) import blocks on every future plan.
+
+#### Option B — `catocli import if_rules_to_tf` (imperative alternative)
+
+A prescriptive, one-command alternative for when authoring import blocks isn't practical (e.g. a fully scripted onboarding pipeline). It walks the exported JSON and runs `terraform import` for each section, rule, and sub-policy. Unlike Option A, state is mutated immediately as the command runs — there is no plan preview.
 
 ```bash
 catocli import if_rules_to_tf config_data/all_ifw_rules_and_sections.json --module-name=module.if_rules
@@ -214,34 +324,27 @@ catocli import if_rules_to_tf config_data/all_ifw_rules_and_sections.json --modu
 
 **Parameters:**
 - `config_data/all_ifw_rules_and_sections.json`: Path to your exported JSON file
-- `--module-name=module.if_rules`: The name of your Terraform module instance
+- `--module-name=module.if_rules`: The state address of your module instance (must match the `module "..."` label in your configuration)
 
-### Typical Brownfield Workflow
+#### Importing a single resource by hand
 
-1. **Export existing rules:**
-   ```bash
-   catocli export if_rules
-   ```
+The state-address table above also drives one-off prescriptive imports, useful when a single rule or section was created out-of-band and just needs to be pulled into existing state:
 
-2. **Create your Terraform configuration:**
-   ```hcl
-   module "if_rules" {
-     source = "./terraform-cato-bulk-if-rules"
-     
-     ifw_rules_json_file_path = "./config_data/all_ifw_rules_and_sections.json"
-   }
-   ```
+```bash
+terraform import 'module.if_rules.cato_if_rule.rules["My IFW Rule 1"]' <rule_id>
+terraform import 'module.if_rules.cato_if_section.sections["My IFW Section 1"]' <section_id>
+```
 
-3. **Import existing state:**
-   ```bash
-   catocli import if_rules_to_tf config_data/all_ifw_rules_and_sections.json --module-name=module.if_rules
-   ```
+### Step 5 — Verify
 
-4. **Run Terraform plan to verify:**
-   ```bash
-   terraform plan
-   ```
-   This should show no changes if the import was successful.
+```bash
+terraform plan
+```
+
+- After **Option A**, the plan should report **no changes** — the apply that performed the imports also created the ordering resource.
+- After **Option B**, the first plan shows `1 to add` (the `cato_bulk_if_move_rule` ordering resource) and nothing else; apply it once, after which plans report no changes.
+
+Any other diff means the live policy and the JSON have drifted — re-export and compare before applying.
 
 ### Backup and Restore Workflow
 
@@ -516,6 +619,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
+| <a name="input_allow_empty_policy"></a> [allow\_empty\_policy](#input\_allow\_empty\_policy) | Safety guard: fail planning when the policy JSON contains 0 rules unless explicitly allowed. Protects against a truncated or wrong-tenant export destroying the live policy. Set true only for intentional greenfield/teardown. | `bool` | `false` | no |
 | <a name="input_ifw_rules_json_file_path"></a> [ifw\_rules\_json\_file\_path](#input\_ifw\_rules\_json\_file\_path) | Path to the json file containing the ifw rule data. | `string` | n/a | yes |
 | <a name="input_section_to_start_after_id"></a> [section\_to\_start\_after\_id](#input\_section\_to\_start\_after\_id) | The ID of the section after which to start adding rules. | `string` | `null` | no |
 
