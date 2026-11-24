@@ -218,6 +218,8 @@ locals {
             custom_category          = try(length(entry.rule.destination.customCategory), 0) > 0 ? [for cat in entry.rule.destination.customCategory : can(cat.name) ? { name = cat.name } : { id = cat.id }] : null
             sanctioned_apps_category = try(length(entry.rule.destination.sanctionedAppsCategory), 0) > 0 ? [for cat in entry.rule.destination.sanctionedAppsCategory : can(cat.name) ? { name = cat.name } : { id = cat.id }] : null
             domain                   = try(length(entry.rule.destination.domain), 0) > 0 ? entry.rule.destination.domain : null
+            subnet                   = try(length(entry.rule.destination.subnet), 0) > 0 ? entry.rule.destination.subnet : null
+            global_ip_range          = try(length(entry.rule.destination.globalIpRange), 0) > 0 ? [for range in entry.rule.destination.globalIpRange : can(range.name) ? { name = range.name } : { id = range.id }] : null
             fqdn                     = try(length(entry.rule.destination.fqdn), 0) > 0 ? entry.rule.destination.fqdn : null
             ip                       = try(length(entry.rule.destination.ip), 0) > 0 ? entry.rule.destination.ip : null
             ip_range = try(length(entry.rule.destination.ipRange), 0) > 0 ? [for range in entry.rule.destination.ipRange : {
@@ -360,7 +362,7 @@ data "cato_ifwRulesIndex" "live" {}
 
 locals {
   json_rule_count = length(local.main_rules_data)
-  live_rule_count = length(try(data.cato_ifwRulesIndex.live.rules, []))
+  live_rule_count = try(length(data.cato_ifwRulesIndex.live.rules), 0)
 }
 
 # Safety guard (fully dynamic, NO flag): fail ONLY when an empty policy JSON would

@@ -3,7 +3,7 @@ terraform {
     cato = {
       source = "catonetworks/cato"
       # version = ">= 0.0.5"
-      version = ">= 2.0.0-prerelease.1"
+      version = ">= 2.0.0"
     }
   }
   required_version = ">= 1.13"

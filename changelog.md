@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.10 (2026-11-24)
+
+### Changes
+- Require the Cato provider `>= 2.0.0` (now GA on the Terraform Registry).
+- Forward primary rule destination `subnet` and `global_ip_range` to the corresponding provider fields.
+- Fix `live_rule_count` null-safety: the provider returns `rules = null` for an empty live policy, so the dynamic empty-policy guard no longer errors on a greenfield tenant.
+- README: replaced the early-access/beta provider notice with a GA notice.
+
 ## 0.0.9 (2026-11-16)
 
 ### Features
