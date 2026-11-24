@@ -185,6 +185,19 @@ locals {
         device = [for device in entry.rule.device : can(device.name) ? { name = device.name } : { id = device.id }]
       } : {},
 
+      # device_attributes: export keys are camelCase (osVersion) while the
+      # provider uses os_version, so map each one explicitly. Empty lists -> null.
+      length(flatten([for v in values(try(entry.rule.deviceAttributes, {})) : try(v, [])])) > 0 ? {
+        device_attributes = {
+          category     = length(try(entry.rule.deviceAttributes.category, [])) > 0 ? entry.rule.deviceAttributes.category : null
+          manufacturer = length(try(entry.rule.deviceAttributes.manufacturer, [])) > 0 ? entry.rule.deviceAttributes.manufacturer : null
+          model        = length(try(entry.rule.deviceAttributes.model, [])) > 0 ? entry.rule.deviceAttributes.model : null
+          os           = length(try(entry.rule.deviceAttributes.os, [])) > 0 ? entry.rule.deviceAttributes.os : null
+          os_version   = length(try(entry.rule.deviceAttributes.osVersion, [])) > 0 ? entry.rule.deviceAttributes.osVersion : null
+          type         = length(try(entry.rule.deviceAttributes.type, [])) > 0 ? entry.rule.deviceAttributes.type : null
+        }
+      } : {},
+
       # Dynamic source block - include if source exists (even if empty)
       try(entry.rule.source, null) != null ? {
         source = {
@@ -193,7 +206,7 @@ locals {
             host        = try(length(entry.rule.source.host), 0) > 0 ? [for host in entry.rule.source.host : can(host.name) ? { name = host.name } : { id = host.id }] : null
             site        = try(length(entry.rule.source.site), 0) > 0 ? [for site in entry.rule.source.site : can(site.name) ? { name = site.name } : { id = site.id }] : null
             users_group = try(length(entry.rule.source.usersGroup), 0) > 0 ? [for group in entry.rule.source.usersGroup : can(group.name) ? { name = group.name } : { id = group.id }] : null
-            subnet      = try(length(entry.rule.source.subnet), 0) > 0 && can(entry.rule.source.subnet[0].name) || can(entry.rule.source.subnet[0].id) ? [for subnet in entry.rule.source.subnet : can(subnet.name) ? { name = subnet.name } : { id = subnet.id }] : null
+            subnet      = try(length(entry.rule.source.subnet), 0) > 0 ? entry.rule.source.subnet : null
             ip_range = try(length(entry.rule.source.ipRange), 0) > 0 ? [for range in entry.rule.source.ipRange : {
               from = range.from
               to   = range.to
@@ -302,7 +315,7 @@ locals {
                   system_group        = try(length(exception.source.systemGroup), 0) > 0 ? [for group in exception.source.systemGroup : can(group.name) ? { name = group.name } : { id = group.id }] : null
                   group               = try(length(exception.source.group), 0) > 0 ? [for group in exception.source.group : can(group.name) ? { name = group.name } : { id = group.id }] : null
                   user                = try(length(exception.source.user), 0) > 0 ? [for user in exception.source.user : can(user.name) ? { name = user.name } : { id = user.id }] : null
-                  subnet              = try(length(exception.source.subnet), 0) > 0 && can(exception.source.subnet[0].name) || can(exception.source.subnet[0].id) ? [for subnet in exception.source.subnet : can(subnet.name) ? { name = subnet.name } : { id = subnet.id }] : null
+                  subnet              = try(length(exception.source.subnet), 0) > 0 ? exception.source.subnet : null
                 } : k => v if v != null
               }
             },
@@ -320,7 +333,7 @@ locals {
                   fqdn                     = try(length(exception.destination.fqdn), 0) > 0 ? exception.destination.fqdn : null
                   country                  = try(length(exception.destination.country), 0) > 0 ? [for country in exception.destination.country : { name = country.name }] : null
                   ip                       = try(length(exception.destination.ip), 0) > 0 ? exception.destination.ip : null
-                  subnet                   = try(length(exception.destination.subnet), 0) > 0 ? [for subnet in exception.destination.subnet : { name = subnet.name }] : null
+                  subnet                   = try(length(exception.destination.subnet), 0) > 0 ? exception.destination.subnet : null
                   ip_range = try(length(exception.destination.ipRange), 0) > 0 ? [for range in exception.destination.ipRange : {
                     from = range.from
                     to   = range.to
@@ -472,6 +485,19 @@ resource "cato_if_sub_policy" "sub_policies" {
       device = [for device in each.value.scope.device : can(device.name) ? { name = device.name } : { id = device.id }]
     } : {},
 
+    # device_attributes: export keys are camelCase (osVersion) while the
+    # provider uses os_version, so map each one explicitly. Empty lists -> null.
+    length(flatten([for v in values(try(each.value.scope.deviceAttributes, {})) : try(v, [])])) > 0 ? {
+      device_attributes = {
+        category     = length(try(each.value.scope.deviceAttributes.category, [])) > 0 ? each.value.scope.deviceAttributes.category : null
+        manufacturer = length(try(each.value.scope.deviceAttributes.manufacturer, [])) > 0 ? each.value.scope.deviceAttributes.manufacturer : null
+        model        = length(try(each.value.scope.deviceAttributes.model, [])) > 0 ? each.value.scope.deviceAttributes.model : null
+        os           = length(try(each.value.scope.deviceAttributes.os, [])) > 0 ? each.value.scope.deviceAttributes.os : null
+        os_version   = length(try(each.value.scope.deviceAttributes.osVersion, [])) > 0 ? each.value.scope.deviceAttributes.osVersion : null
+        type         = length(try(each.value.scope.deviceAttributes.type, [])) > 0 ? each.value.scope.deviceAttributes.type : null
+      }
+    } : {},
+
     # Dynamic source block - include if source exists (even if empty)
     try(each.value.scope.source, null) != null ? {
       source = {
@@ -480,7 +506,7 @@ resource "cato_if_sub_policy" "sub_policies" {
           host        = try(length(each.value.scope.source.host), 0) > 0 ? [for host in each.value.scope.source.host : can(host.name) ? { name = host.name } : { id = host.id }] : null
           site        = try(length(each.value.scope.source.site), 0) > 0 ? [for site in each.value.scope.source.site : can(site.name) ? { name = site.name } : { id = site.id }] : null
           users_group = try(length(each.value.scope.source.usersGroup), 0) > 0 ? [for group in each.value.scope.source.usersGroup : can(group.name) ? { name = group.name } : { id = group.id }] : null
-          subnet      = try(length(each.value.scope.source.subnet), 0) > 0 && can(each.value.scope.source.subnet[0].name) || can(each.value.scope.source.subnet[0].id) ? [for subnet in each.value.scope.source.subnet : can(subnet.name) ? { name = subnet.name } : { id = subnet.id }] : null
+          subnet      = try(length(each.value.scope.source.subnet), 0) > 0 ? each.value.scope.source.subnet : null
           ip_range = try(length(each.value.scope.source.ipRange), 0) > 0 ? [for range in each.value.scope.source.ipRange : {
             from = range.from
             to   = range.to
@@ -581,7 +607,7 @@ resource "cato_if_sub_policy" "sub_policies" {
                 system_group        = try(length(exception.source.systemGroup), 0) > 0 ? [for group in exception.source.systemGroup : can(group.name) ? { name = group.name } : { id = group.id }] : null
                 group               = try(length(exception.source.group), 0) > 0 ? [for group in exception.source.group : can(group.name) ? { name = group.name } : { id = group.id }] : null
                 user                = try(length(exception.source.user), 0) > 0 ? [for user in exception.source.user : can(user.name) ? { name = user.name } : { id = user.id }] : null
-                subnet              = try(length(exception.source.subnet), 0) > 0 && can(exception.source.subnet[0].name) || can(exception.source.subnet[0].id) ? [for subnet in exception.source.subnet : can(subnet.name) ? { name = subnet.name } : { id = subnet.id }] : null
+                subnet              = try(length(exception.source.subnet), 0) > 0 ? exception.source.subnet : null
               } : k => v if v != null
             }
           },
@@ -597,7 +623,7 @@ resource "cato_if_sub_policy" "sub_policies" {
                 fqdn                     = try(length(exception.destination.fqdn), 0) > 0 ? exception.destination.fqdn : null
                 country                  = try(length(exception.destination.country), 0) > 0 ? [for country in exception.destination.country : { name = country.name }] : null
                 ip                       = try(length(exception.destination.ip), 0) > 0 ? exception.destination.ip : null
-                subnet                   = try(length(exception.destination.subnet), 0) > 0 ? [for subnet in exception.destination.subnet : { name = subnet.name }] : null
+                subnet                   = try(length(exception.destination.subnet), 0) > 0 ? exception.destination.subnet : null
                 ip_range = try(length(exception.destination.ipRange), 0) > 0 ? [for range in exception.destination.ipRange : {
                   from = range.from
                   to   = range.to
